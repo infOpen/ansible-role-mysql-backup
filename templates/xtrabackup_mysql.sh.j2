@@ -1,0 +1,63 @@
+#!/usr/bin/env bash
+
+# {{ ansible_managed }}
+
+# INITIALIZE VARIABLES
+backup_type=$1
+timestamp_option=" --no-timestamp"
+
+backup_dir="{{ mysqlbackup_backupdir_inc }}"
+log_dir="{{ mysqlbackup_logdir }}"
+
+base_log_filename="${log_dir}/cron-xtrabackup-${backup_type}"
+error_log_filename="${log_dir}/cron-xtrabackup-error.log"
+backup_log_filename="${base_log_filename}.log"
+last_backup_log_filename="${base_log_filename}.last"
+
+
+
+# TEST ARGUMENT
+if [[ "$1" == "full" ]]
+then
+    timestamp_option=""
+    backup_dir="{{ mysqlbackup_backupdir_full }}"
+else
+    echo "Bad argument received (Only full possible !). Exit script !"
+    echo "Bad argument received (Only full possible !). Exit script !" >> "${error_log_filename}"
+    exit 2
+fi
+
+
+# LAUNCH BACKUP
+/usr/bin/innobackupex --defaults-file="{{ mysqlbackup_credentials_file }}" ${timestamp_option} "${backup_dir}" 2> >(/usr/bin/tee -a "${backup_log_filename}" >&2) 2> >(/usr/bin/tee "${last_backup_log_filename}" >&2)
+step_one_result=$?
+
+
+# GET TIMESTAMP DIR IF FULL BACKUP
+if [[ "$1" == "full" ]]
+then
+    last_full_backup=$(cd "${backup_dir}"; find * -type d -prune -exec ls -d {} \; |tail -1)
+fi
+
+
+# APPLY BINARY LOGS
+/usr/bin/innobackupex --defaults-file="{{ mysqlbackup_credentials_file }}" --apply-log "${backup_dir}/${last_full_backup}" 2> >(/usr/bin/tee -a "${backup_log_filename}" >&2) 2> >(/usr/bin/tee -a "${last_backup_log_filename}" >&2)
+step_two_result=$?
+
+
+# COMPRESS DIR IF FULL BACKUP
+if [[ "$1" == "full" ]]
+then
+    /bin/tar czf "${backup_dir}/${last_full_backup}.tgz" "${backup_dir}/${last_full_backup}" && /bin/rm -rf "${backup_dir}/${last_full_backup}"
+fi
+
+
+# CHECK IF BACKUP IS OK
+if [[ ! ($step_one_result -eq 0 && $step_two_result -eq 0) ]]
+then
+    /bin/cat "${last_backup_log_filename}" >> "${error_log_filename}"
+    exit 2
+else
+    /bin/date >> "${log_dir}/last_successfull_${backup_type}"
+    exit 0
+fi

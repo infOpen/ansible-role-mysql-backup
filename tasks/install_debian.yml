@@ -1,0 +1,23 @@
+---
+
+- name    : install percona key
+  apt_key :
+    keyserver : "{{ mysqlbackup_percona_keyserver }}"
+    id        : "{{ mysqlbackup_percona_key }}"
+    state     : present
+
+
+- name : add percona repository
+  apt_repository :
+    repo  : "{{ mysqlbackup_percona_repo }}"
+    state : present
+    update_cache : True
+
+
+- name : install percona-xtrabackup
+  apt  :
+    name  : "{{ item }}"
+    state : present
+    update_cache     : True
+    cache_valid_time : 3600
+  with_items : "{{ mysqlbackup_packages }}"

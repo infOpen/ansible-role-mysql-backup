@@ -1,0 +1,52 @@
+---
+
+# Xtrabackup configuration
+
+- name : create incremental backup directory
+  file :
+    path  : "{{ mysqlbackup_backupdir_inc }}"
+    group : "{{ mysqlbackup_backupdir_group }}"
+    owner : "{{ mysqlbackup_backupdir_owner }}"
+    state : directory
+    mode  : "{{ mysqlbackup_backupdir_permission }}"
+
+
+- name : create full backup directory
+  file :
+    path  : "{{ mysqlbackup_backupdir_full }}"
+    group : "{{ mysqlbackup_backupdir_group }}"
+    owner : "{{ mysqlbackup_backupdir_owner }}"
+    state : directory
+    mode  : "{{ mysqlbackup_backupdir_permission }}"
+
+
+- name : create crontab scripts directory
+  file :
+    path  : "{{ mysqlbackup_crontab_script_dir }}"
+    group : "{{ mysqlbackup_crontab_script_dir_group }}"
+    owner : "{{ mysqlbackup_crontab_script_dir_owner }}"
+    state : directory
+    mode  : "{{ mysqlbackup_crontab_script_dir_permission }}"
+
+
+- name : generate xtrabackup script
+  template :
+    src   : "{{ role_path }}/templates/xtrabackup_mysql.sh.j2"
+    dest  : "{{ mysqlbackup_crontab_script_dir }}/xtrabackup_mysql.sh"
+    group : "{{ mysqlbackup_crontab_script_files_group }}"
+    owner : "{{ mysqlbackup_crontab_script_files_owner }}"
+    mode  : "{{ mysqlbackup_crontab_script_files_permission }}"
+
+
+- name : create cron entry for xtrabackup full job
+  cron :
+    cron_file : "{{ mysql_backup_cron_xtrabackup_full_file }}"
+    name      : "xtrabackup full"
+    job       : "{{ mysqlbackup_crontab_script_dir }}/xtrabackup_mysql.sh full"
+    user      : "{{ mysql_backup_cron_xtrabackup_full_user }}"
+    minute    : "{{ mysql_backup_cron_xtrabackup_full_minute }}"
+    hour      : "{{ mysql_backup_cron_xtrabackup_full_hour }}"
+    day       : "{{ mysql_backup_cron_xtrabackup_full_month_day }}"
+    month     : "{{ mysql_backup_cron_xtrabackup_full_month }}"
+    weekday   : "{{ mysql_backup_cron_xtrabackup_full_week_day }}"
+    state     : present

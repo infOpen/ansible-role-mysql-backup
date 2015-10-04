@@ -1,0 +1,211 @@
+# {{ ansible_managed }}
+
+# Target output Directory
+TARGET="{{ mysqlbackup_backupdir_dump }}"
+
+# Prefix for database dump file
+PREFIX="{{ mysqlbackup_mysqldump_prefix }}"
+
+# File/Folder permission of Target directory ($TARGET)
+# and the actual dumped databases.
+# If not otherwise needed, leave the
+# protective secure default values
+TARGET_DIR_CHMOD="{{ mysqlbackup_mysqldump_target_dir_mode }}"
+TARGET_FILE_CHMOD="{{ mysqlbackup_mysqldump_target_file_mode }}"
+
+
+
+
+######################################################################
+# MySQL
+######################################################################
+
+# Never ever pass the mysql credentials on the command line via
+# --password / -p as this can be seen by all users in ps aux or top.
+# Instead use a *.cnf file with a user that only has read access
+# @see mysqldump-secure.cnf for example
+#
+# NOTE: Must be chmod 0400
+MYSQL_CNF_FILE="{{ mysqlbackup_credentials_file }}"
+
+# MySQLDump Options
+# --routines (Off by default)
+# --events   (Off by default)
+# --triggers (On by default)
+# --opt      (On by default)
+#   Included in --opt:
+#    --add-drop-table
+#    --add-locks
+#    --create-options
+#    --disable-keys
+#    --extended-insert
+#    --lock-tables
+#    --quick
+#    --set-charset
+MYSQL_OPTS="{{ mysqlbackup_mysqldump_mysql_opts | join(' ') }}"
+
+# Opt out
+# Databases not to be dumped.
+# (space separated)
+IGNORE="{{ mysqlbackup_mysqldump_ignore_db | join(' ') }}"
+
+
+# A list of databases that are explicitly required.
+# If any of the specified required databases is not existent
+# in the MySQL database or specified in IGNORE,
+# (hence not dumped to disk), the script will write an error to stdout and LOG.
+#
+# Additionally, this information is also used by the nagios plugin and will automatically
+# throw an error in nagios when any of the below specified databases were not found and/or not dumped.
+#
+# NOTE: The here specified databases are not guaranteed to be dumped,
+#       because they might not even exist, it is rather
+#       a method of letting you know, that they could not be dumped.
+REQUIRE="{{ mysqlbackup_mysqldump_needed_db | join(' ') }}"
+
+
+
+######################################################################
+# Logging
+######################################################################
+
+# Log output to logfile
+# 1: yes
+# 0: no (Default)
+LOG={{ mysqlbackup_mysqldump_logging_active }}
+
+
+# Only applicable if LOG = 1
+# NOTE: Must be writeable by the user who runs the script
+# NOTE: Must be chmod 600
+LOGFILE="{{ mysqlbackup_logdir }}/mysqldump-secure.log"
+
+
+
+######################################################################
+# Compression
+######################################################################
+
+#
+# Compression is done via gzip 9
+#
+
+# Use gzip compression?
+# 1: yes
+# 0: no (Default)
+COMPRESS={{ mysqlbackup_mysqldump_compress_active }}
+
+
+
+######################################################################
+# Encryption
+######################################################################
+
+#
+# Encryption is done via openssl smime public/private key.
+# This means the files can only be decrypted with a private key
+# which should be placed somewhere safe (not on the same machine).
+# Encryption is done via the public key which can be readable.
+# @required   openssl
+#
+# Examples:
+#
+# * Create public/private key pair
+#    openssl req -x509 -nodes -newkey rsa:2048 -keyout mysqldump-secure.priv.pem -out mysqldump-secure.pub.pem
+#
+# * How to enccrypt? (pubkey)
+#    openssl smime -encrypt -binary -text -aes256 -in file.txt -out file.txt.enc" -outform DER mysqldump-secure.pub.pem
+#
+# * How to decrypt? (privkey)
+#    openssl smime -decrypt -in file.txt.enc -binary -inform DEM -inkey mysqldump-secure.priv.pem -out file.txt
+
+
+
+# Encrypt database dumps?
+# 1: yes
+# 0: no (Default)
+ENCRYPT={{ mysqlbackup_mysqldump_encrypt_active }}
+
+# Only applicable if ENCRYPT = 1
+# OpenSSL Public key in PEM format without passphrase
+#OPENSSL_PUBKEY_PEM="{{ mysqlbackup_mysqldump_encrypt_pub_key }}"
+
+# Only applicable if ENCRYPT = 1
+# Must be valid openssl encryption algorithm
+#OPENSSL_ALGO_ARG="{{ mysqlbackup_mysqldump_encrypt_algo }}"
+
+
+
+######################################################################
+# Delete old files?
+######################################################################
+
+#
+# This relies completely on tmpwatch/tmpreamer and will delete all files recursively
+# which modification time is older than X hours.
+# tmpwatch/tmpreaper behavior applies:
+#  * no symbolic links
+#  * recursive
+# @required   tmpwatch
+#
+# Command parsed to tmpwatch/tmpreaper
+#
+# tmpwatch -m ${DELETE_IF_OLDER} -v ${TARGET}/
+# tmpreaper -m ${DELETE_IF_OLDER} -v ${TARGET}/
+#
+
+# Delete old files
+# 1: yes
+# 0: no (Default)
+DELETE={{ mysqlbackup_mysqldump_delete_active }}
+
+
+# Choose the binary to use for deletion
+# Possible values:
+# * tmpwatch
+# * tmpreaper
+#
+DELETE_METHOD="{{ mysqlbackup_mysqldump_delete_method }}"
+
+
+
+# Force deletion for read-only files.
+# If your $TARGET_FILE_CHMOD is set to create read-only database dumps,
+# tmpwatch/tmpreader will not be able to delete those files, unless you
+# specify to force it via -f (--force)
+#
+# From manpage:
+# Remove files even if EUID doesn’t have write access.
+# Normally, files owned by the current EUID, with no write bit set are not removed.
+DELETE_FORCE={{ mysqlbackup_mysqldump_delete_force }}
+
+
+# Only applicable of DELETE = 1
+# Delete all files recursively which modification time
+# is older than this
+# e.g.
+# DELETE_IF_OLDER=720   # 30 days
+#
+# NOTE: Only positive integers greater than zero are allowed
+#       Everything else will disable deletion.
+DELETE_IF_OLDER={{ mysqlbackup_mysqldump_delete_max_hours }}     # older than 30 days
+
+
+
+######################################################################
+# Nagios Logging
+######################################################################
+
+# Enable separate logfile which can be parsed by check_mysqldump-secure
+# in order to report success/warn/error state to nagios server
+# The logfile is in classic .ini file format and must be readable by the
+# nagios user.
+
+# Enable Nagios Logfile
+# 1: yes
+# 0: no (Default)
+NAGIOS_LOG={{ mysqlbackup_mysqldump_nagios_active }}
+
+# Only applicable if NAGIOS_LOG = 1
+# NOTE: Must be chmod 644
+NAGIOS_LOGFILE="{{ mysqlbackup_logdir }}/mysqldump-secure.nagios.log"

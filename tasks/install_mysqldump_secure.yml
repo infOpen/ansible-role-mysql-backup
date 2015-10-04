@@ -1,0 +1,48 @@
+---
+
+# Install mysqldump-secure
+
+- name : create mysqldump backup directory
+  file :
+    path  : "{{ mysqlbackup_backupdir_dump }}"
+    group : "{{ mysqlbackup_backupdir_group }}"
+    owner : "{{ mysqlbackup_backupdir_owner }}"
+    state : directory
+    mode  : "{{ mysqlbackup_backupdir_permission }}"
+
+
+- name : clone ehanced backup script using mysqldump
+  sudo : false
+  local_action : git repo="{{ mysqlbackup_mysqldump_secure_repo }}" dest="/tmp/ansible-mysqldump-script/"
+
+
+- name : copy mysqldump backup script
+  copy :
+    src   : "/tmp/ansible-mysqldump-script/mysqldump-secure"
+    dest  : "{{ mysqlbackup_crontab_script_dir }}/"
+    group : "{{ mysqlbackup_crontab_script_files_group }}"
+    owner : "{{ mysqlbackup_crontab_script_files_owner }}"
+    mode  : "{{ mysqlbackup_crontab_script_files_permission }}"
+
+
+- name : generate config file for mysqldump backup
+  template :
+    src   : "{{ role_path }}/templates/mysqldump-secure.conf.j2"
+    dest  : "/etc/mysqldump-secure.conf"
+    group : "{{ mysqlbackup_crontab_script_files_group }}"
+    owner : "{{ mysqlbackup_crontab_script_files_owner }}"
+    mode  : 0400
+
+
+- name : create cron entry for mysqldump job
+  cron :
+    cron_file : "{{ mysql_backup_cron_mysqldump_file }}"
+    name      : "mysqldump"
+    job       : "{{ mysqlbackup_crontab_script_dir }}/mysqldump-secure"
+    user      : "{{ mysql_backup_cron_mysqldump_user }}"
+    minute    : "{{ mysql_backup_cron_mysqldump_minute }}"
+    hour      : "{{ mysql_backup_cron_mysqldump_hour }}"
+    day       : "{{ mysql_backup_cron_mysqldump_month_day }}"
+    month     : "{{ mysql_backup_cron_mysqldump_month }}"
+    weekday   : "{{ mysql_backup_cron_mysqldump_week_day }}"
+    state     : present
