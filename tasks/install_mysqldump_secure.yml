@@ -13,7 +13,7 @@
 
 - name : clone ehanced backup script using mysqldump
   sudo : false
-  local_action : git repo="{{ mysqlbackup_mysqldump_secure_repo }}" dest="/tmp/ansible-mysqldump-script/"
+  local_action : git repo="{{ mysqlbackup_mysqldump_secure_repo }}" dest="/tmp/ansible-mysqldump-script/" recursive=False
 
 
 - name : copy mysqldump backup script
