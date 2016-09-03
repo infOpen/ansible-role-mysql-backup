@@ -18,7 +18,7 @@
 
 - name : copy mysqldump backup script
   copy :
-    src   : "/tmp/ansible-mysqldump-script/mysqldump-secure"
+    src   : "/tmp/ansible-mysqldump-script/bin/mysqldump-secure"
     dest  : "{{ mysqlbackup_crontab_script_dir }}/"
     group : "{{ mysqlbackup_crontab_script_files_group }}"
     owner : "{{ mysqlbackup_crontab_script_files_owner }}"
