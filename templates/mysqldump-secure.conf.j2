@@ -1,59 +1,225 @@
-# {{ ansible_managed }}
-
-# Target output Directory
-TARGET="{{ mysqlbackup_backupdir_dump }}"
-
-# Prefix for database dump file
-PREFIX="{{ mysqlbackup_mysqldump_prefix }}"
-
-# File/Folder permission of Target directory ($TARGET)
-# and the actual dumped databases.
-# If not otherwise needed, leave the
-# protective secure default values
-TARGET_DIR_CHMOD="{{ mysqlbackup_mysqldump_target_dir_mode }}"
-TARGET_FILE_CHMOD="{{ mysqlbackup_mysqldump_target_file_mode }}"
-
-
-
-
-######################################################################
-# MySQL
-######################################################################
-
-# Never ever pass the mysql credentials on the command line via
-# --password / -p as this can be seen by all users in ps aux or top.
-# Instead use a *.cnf file with a user that only has read access
-# @see mysqldump-secure.cnf for example
+# mysqldump-secure.conf
 #
-# NOTE: Must be chmod 0400
+# This is the main configuration file for mysqldump-secure.
+#
+#
+# Each configuration directive will indicate whether or not it has
+# a default value and what the default value is.
+#
+# Directives with a default value:
+# --------------------------------
+# 1. If you enter a wrong value, mysqldump-secure will warn
+#    to stderr and apply the default value.
+# 2. If you remove the variable, mysqldump-secure will warn
+#    to stderr and apply the default value.
+#
+# Directives without a default value:
+# -----------------------------------
+# 1. If you enter a wrong value, mysqldump-secure will error
+#    to stderr and abort.
+# 2. If you remove the variable, mysqldump-secure will error
+#    to stderr and abort.
+#
+# The above described behavior is a security mechanism for critical
+# configurations. For example if you have removed the directive that
+# sets whether or not to encrypt the backups, then it is not sure
+# whether or not you are paranoid about your data and mysqldump-secure
+# will abort immediately until you have told it correctly whether or
+# not to encrypt.
+# The same is true for SSL connections and some other directives.
+# Just check for the default values.
+#
+
+
+
+################################################################################
+#
+#  1.   O U T P U T   F I L E / F O L D E R   S E T T I N G S
+#
+################################################################################
+
+############################################################
+# Backup directory
+############################################################
+
+# Backup directory
+#
+# This is the directory where your backups will be written to disk.
+# Will be created automatically if it does not exist.
+#
+# Default value: "##INSTALL_PREFIX##/var/mysqldump-secure"
+DUMP_DIR="{{ mysqlbackup_backupdir_dump }}"
+
+
+
+# Backup directory chmod.
+# The directory permissions.
+# Will be adjusted if it differs from the specified value.
+#
+# Default value: "0700"
+DUMP_DIR_CHMOD="{{ mysqlbackup_mysqldump_target_dir_mode }}"
+
+
+
+############################################################
+# Backup file
+############################################################
+
+# Prefix for the database dump file name.
+#
+# This is the filename prefix for all your backup files.
+#
+# Default value: "$(date '+%Y-%m-%d')_$(date '+%H-%M')__""
+DUMP_FILE_PRE="{{ mysqlbackup_mysqldump_prefix }}"
+
+
+
+# Fille chmod permission for actual backup files.
+#
+# NOTE: The file is directly written with this permission (via umask)
+#       instead of applying chmod afterwards. This makes sure that there are no
+#       race-conditions during the dump that someone can view the contens before the
+#       chmod changes.
+#
+# Default value: "0400"
+DUMP_FILE_CHMOD="{{ mysqlbackup_mysqldump_target_file_mode }}"
+
+
+
+
+
+################################################################################
+#
+#  2.   M Y S Q L   C O N N E C T I O N   S E T T I N G S
+#
+################################################################################
+
+############################################################
+# Host/Credentials file
+############################################################
+
+# Credentials file (host, user, pass, port, socket)
+#
+# WARN: Never ever pass the mysql credentials on the command line via
+#       --password / -p as this can be seen by all users in ps aux or top.
+#       Instead use a *.cnf file with a host, user and password combination.
+#
+# NOTE: No other default *.cnf files will be included for connections/dumping.
+#       This is the only file that will be read my mysqldump-secure.
+#
+# NOTE: Only host, user, pass, port and socket directives are allowed.
+#       All other options are specified in this configuration file.
+#
+# NOTE: Must be chmod 0400.
+#       If it does not have chmod 0400,
+#       mysqldump-secure will abort
+#
+# NOTE: No default value!
+#       If this variable is not set or the file does not exist,
+#       mysqldump-secure will abort.
 MYSQL_CNF_FILE="{{ mysqlbackup_credentials_file }}"
 
-# MySQLDump Options
-# --routines (Off by default)
-# --events   (Off by default)
-# --triggers (On by default)
-# --opt      (On by default)
-#   Included in --opt:
-#    --add-drop-table
-#    --add-locks
-#    --create-options
-#    --disable-keys
-#    --extended-insert
-#    --lock-tables
-#    --quick
-#    --set-charset
-MYSQL_OPTS="{{ mysqlbackup_mysqldump_mysql_opts | join(' ') }}"
 
-# Opt out
-# Databases not to be dumped.
-# (space separated)
+
+############################################################
+# SSL Connection
+############################################################
+
+# If this is set to true, an SSL connection is required and
+# the program will abort, if the connection is not secured.
+#
+# Turn it on to force SSL and die for plain connections.
+# Turn it off, to do plain-text connection (e.g.: from localhost)
+#
+# NOTE: No default value!
+#       If this variable is not set or has an invalid value,
+#       mysqldump-secure will abort.
+#
+# Values:
+# -------
+# 1: SSL
+# 0: Plain-text
+MYSQL_SSL_ENABLE=0
+
+
+# CA pem file for SSL connection.
+# This variable is only checked when $MYSQL_SSL_ENABLE is enabled.
+#
+# NOTE: No default value!
+#       If $MYSQL_SSL_ENABLE is enabled and this variable is not set
+#       or has an invalid value (file not found, no valid pem file),
+#       mysqldump-secure will abort.
+#
+# Specify the full path to the certificate authority pem file.
+MYSQL_SSL_CA_PEM="/path/to/ca.pem"
+
+
+# (Optional)
+# If the user account was created with the 'REQUIRE X509' option,
+# then the client must also specify the proper client key and certificate
+# files or the server will reject the connection.
+#MYSQL_SSL_CLIENT_CERT_PEM="/path/to/client-cert.pem"
+#MYSQL_SSL_CLIENT_KEY_PEM="/path/to/client-key.pem"
+
+
+
+
+################################################################################
+#
+#  3.   M Y S Q L D U M P   O P T I O N S
+#
+################################################################################
+
+
+############################################################
+# opt-in / opt-out to databases
+############################################################
+
+#
+# By default, all existing mysql databases will be backed up
+# without having to explicitly specifying them.
+#
+# You can however fine-adjust it by ignoring certain databases
+# from the backup procedure below.
+#
+
+
+# Opt out (Ignore)
+#
+# A space-separated list of databases not to be dumped (ignored).
+#
+# Note:
+# -----
+# Be aware that $REQUIRE overwrites the ignored databases.
+# You can ignore all databases here and explicitly only require
+# the ones you actually want to dump.
+# If you ignore 'mysql' and require 'mysql',
+# it wil be back-upped.
+#
+# Note:
+# -----
+# The asterisk character '*' can be used as a wildcard.
+#
+# Examples:
+# ---------
+# IGNORE=""             # <-- Empty: Nothing will be ignored
+# IGNORE="*"            # <-- ignores all dbs
+# IGNORE="db*"          # <-- ignores all dbs starting with db
+# IGNORE="*_schema"     # <-- ignores all dbs ending with _schema (such as information_schema and performance_schema)
+# IGNORE="*_schema db*" # <-- Multiple wildcards are also allowed
+# IGNORE="mysql"        # <-- Ignore by matching the exact name
+#
+# Default value: "" <-- do not ignore anything
 IGNORE="{{ mysqlbackup_mysqldump_ignore_db | join(' ') }}"
 
 
-# A list of databases that are explicitly required.
+
+# Opt-in check (Require)
+#
+# A space-separated list of databases that are explicitly required.
+#
 # If any of the specified required databases is not existent
-# in the MySQL database or specified in IGNORE,
-# (hence not dumped to disk), the script will write an error to stdout and LOG.
+# the script will generate an error after finishing (stderr, exit code and inside the logfile).
 #
 # Additionally, this information is also used by the nagios plugin and will automatically
 # throw an error in nagios when any of the below specified databases were not found and/or not dumped.
@@ -61,45 +227,346 @@ IGNORE="{{ mysqlbackup_mysqldump_ignore_db | join(' ') }}"
 # NOTE: The here specified databases are not guaranteed to be dumped,
 #       because they might not even exist, it is rather
 #       a method of letting you know, that they could not be dumped.
+#
+# NOTE: Use this to overwrite any ignored databases.
+#       You could for example ignore all databases and only
+#       require the once you desire here.
+#
+# Default value: "" <-- do not require anything
 REQUIRE="{{ mysqlbackup_mysqldump_needed_db | join(' ') }}"
 
 
 
-######################################################################
-# Logging
-######################################################################
 
-# Log output to logfile
-# 1: yes
-# 0: no (Default)
+
+############################################################
+# Custom mysqldump options (all databases)
+############################################################
+
+#
+# Custom MySQLDump Options
+#
+# NOTE: Applied to all databases
+#
+
+# mysqldump options/arguments
+#
+# Adjust as needed.
+#
+# NOTE: `--opt` is turned on by default, so it must not be specified explicitly.
+#       `--opt` will also automatically pull in `--quick` and `--lock-tables`.
+#
+#       However, `--quick` **could** be turned off automatically by mysqldump-secure, depending
+#       on the $MYSQL_OPTS_QUICK_MIN_SIZE variable per database. (see below).
+#
+#       Also `--lock-tables` **could** be turned off automatically by mysqldump-secure, depending
+#       on $CONSISTENT_DUMP_ONLY_INNODB, $CONSISTENT_DUMP_NO_INNODB and $CONSISTENT_DUMP_MIXED_INNODB
+#       per database. (see below).
+#
+# NOTE: All mysqldump options
+#         * regarding the connection (host, port, user, pass, socket)
+#         * regarding SSL (enable, cert paths)
+#         * regarding table locks and transactions
+#         * `--quick`
+#       are blacklisted and mysqldump-secure will abort with an appropriate error if specified here.
+#       Those options are handled automatically via configuration directives.
+#
+# Default value: "--opt"
+MYSQL_OPTS="{{ mysqlbackup_mysqldump_mysql_opts | join(' ') }}"
+
+
+
+
+############################################################
+# Mysqldump Performance (conditional)
+############################################################
+
+#
+# NOTE: Conditionally applied per database
+#
+#
+# Apply '--quick' only on databases that are at least X MB in size
+#
+# >> This option is useful for dumping large tables. It forces
+# >> mysqldump to retrieve rows for a table from the server a row at
+# >> a time rather than retrieving the entire row set and buffering
+# >> it in memory before writing it out.
+#
+# Turning `--quick` off for smaller databases should be more performant.
+# However, the database must fit into the available RAM, so choose a small
+# value here and play around with it to see if 200MB is good for you or not.
+#
+# Examples:
+#
+# MYSQL_OPT_QUICK_MIN_SIZE=0
+#  --> Enable on databases >=0 MB (obviously on all databases)
+#
+# MYSQL_OPT_QUICK_MIN_SIZE=10
+#  --> Enable on databases >=10 MB
+#
+# MYSQL_OPT_QUICK_MIN_SIZE=10
+#  --> Enable on databases >=200 MB
+#
+# Default value: "200" (Databases >= 200 MB)
+MYSQL_OPTS_QUICK_MIN_SIZE=200
+
+
+
+############################################################
+# Mysqldump Consistency/Transactions (conditional)
+############################################################
+
+#
+# NOTE: Conditionally applied per database
+#
+# NOTE: Consistent mysqldumps across tables (not across all databases)
+#
+
+
+
+#
+# Case 1: Only InnoDB tables inside current DB
+#
+# If the current dumped database only contains InnoDB tables,
+# this database is then dumped with the '--single-transaction' option.
+#
+# With this option turned on, all tables inside this database will be dumped consistently.
+# If there was any INSERT, ALTER (or other changes on the tables during the period of backup
+# by another program/process), these changes will not go into dump and you will end up
+# with a fully consistend dump from the time it was started doing the backup.
+#
+# If however the current database contains at least one table which is not using the InnoDB
+# engine, the '--single-transaction' option will not be used.
+# For this case see CONSISTENT_DUMP_OTHERS (below).
+#
+# Note:
+# It is safe and recommended to leave this option turned on!
+#
+# Note:
+# Again, this applies only to databases which only have InnoDB tables.
+#
+# Values:
+# -------
+# 0: Do not dump consistently
+# 1: Dump consistently with '--single-transaction'
+#
+# Default value: 1
+CONSISTENT_DUMP_ONLY_INNODB=1
+
+
+
+
+
+#
+# Case 2: Only non-InnoDB table engines (Not a single InnoDB table)
+#
+# If the current dumped database contains no InnoDB engines at all,
+# this database is then dumped with the '--lock-tables' option.
+#
+# With this option turned on, all tables inside this database will be dumped consistently.
+#
+# However, every INSERT, ALTER (or other changing sql function) to tables inside this database
+# will be blocked (and queued) for the time of the dump.
+# So if you have a web application for example that is receiving lots of INSERTs, choose a time
+# with least visitors, because the application will be blocked during the backup time.
+#
+#
+# Solution 1: Convert all your databases to InnoDB
+#   --> and ignore this option
+#
+# Solution 2: Choose a time where less or no changes to that database are expected
+#   --> and set   CONSISTENT_DUMP_OTHERS=1
+#
+# Solution 3: Turn off this feature and live without consistent dumps.
+#   --> and set   CONSISTENT_DUMP_OTHERS=0
+#
+# Note:
+# Again, this applies to all databases which have at least 1 table engine that is NOT InnoDB
+#
+# Values:
+# -------
+# 0: Do not dump consistently: '--skip-lock-tables'
+# 1: Dump consistently with:   '--lock-tables'
+#
+# Default value: 1
+CONSISTENT_DUMP_NO_INNODB=1
+
+
+
+#
+# Case 3: At least 1 InnoDB table and at least one non-InnoDB table
+#
+# If the current dumped database contains at least one InnoDB table and at least one non-InnoDB table
+# (such as MyISAM or others), this database can then be dumped in three ways:
+#
+#
+# CONSISTENT_DUMP_MIXED_INNODB=0
+# ------------------------------
+# No consistency at all, applying '--skip-lock-tables'.
+#
+#
+# CONSISTENT_DUMP_MIXED_INNODB=1
+# ------------------------------
+# Total consistency, applying '--lock-tables'.
+#
+# However, every INSERT, ALTER (or other changing sql function) to tables inside this database
+# will be blocked (and queued) for the time of the dump.
+# So if you have a web application for example that is receiving lots of INSERTs, choose a time
+# with least visitors, because the current dumped database will be read-only
+# (but all quries are queued) during the backup time.
+#
+# Solution 1: Convert all your tables in your databases to InnoDB
+#   --> and ignore this option
+#
+# Solution 2: Choose a time where less or no changes to that database are expected
+#   --> and set   CONSISTENT_DUMP_OTHERS=1
+#
+# Solution 3: Use a Master/Slave setup and always backup from slave
+#   --> This is a recommendation/solution for a production environment.
+#
+# CONSISTENT_DUMP_MIXED_INNODB=2
+# ------------------------------
+# Partly consistent, applying '--single-transaction' (for the luck).
+#
+# All InnoDB tables will be dumped consistently, however, all others will
+# not be dumped consistently.
+#
+#
+# Values:
+# -------
+# 0: Do not dump consistently: '--skip-lock-tables'
+# 1: Dump consistently with:   '--lock-tables'
+# 2: Treat all as InnoDB:      '--single-transaction'
+#
+# Default value: 1
+CONSISTENT_DUMP_MIXED_INNODB=1
+
+
+
+
+################################################################################
+#
+#  4.   F E A T U R E S
+#
+################################################################################
+
+
+
+############################################################
+# (OPT) Loggin
+############################################################
+
+
+# Log output to logfile?
+# 0: off
+# 1: info (normal operation)
+# 2: debug (info + debug), like  -v for output
+# 3: trace (info + debug + trace), like -vv for output
+#
+# Default value: 0 (turned off)
 LOG={{ mysqlbackup_mysqldump_logging_active }}
 
 
-# Only applicable if LOG = 1
+# Logfile
+# NOTE: Only applicable if the LOG variable is not set to 0
 # NOTE: Must be writeable by the user who runs the script
-# NOTE: Must be chmod 600
-LOGFILE="{{ mysqlbackup_logdir }}/mysqldump-secure.log"
-
-
-
-######################################################################
-# Compression
-######################################################################
-
 #
-# Compression is done via gzip 9
-#
+# Default value "##INSTALL_PREFIX##/var/log/mysqldump-secure.log"
+LOG_FILE="{{ mysqlbackup_logdir }}/mysqldump-secure.log"
 
-# Use gzip compression?
+
+# Logfile permissions
+# NOTE: Only applicable if the LOG variable is not set to 0
+# NOTE: Should be very strict to not give away information.
+#
+# Default value: "0600"
+LOG_CHMOD="0600"
+
+
+
+############################################################
+# (OPT) Compression
+############################################################
+
+
+# Use compression?
+#
+# Compression is done before writing files to disk.
+#
+# Values:
+# -------
 # 1: yes
 # 0: no (Default)
 COMPRESS={{ mysqlbackup_mysqldump_compress_active }}
 
+# Specify compression options.
+# The following three variables must be set, when
+# COMPRESS is enabled:
+# * COMPRESS_BIN: name of the binary
+# * COMPRESS_ARG: arguments to pass to the binary
+# * COMPRESS_EXT: extension to use
+#
+# NOTE: No default values can be provided and the program will simply
+#       disable compression if those variables are not set.
+#       If you set them wrongly dumps might now be written to disk correctly.
+#       Nevertheless, every error on writing or the compression process will
+#       be outputted.
 
 
-######################################################################
-# Encryption
-######################################################################
+#
+# Choose a compression preset below.
+#
+# NOTE: Last turned on preset will be effective.
+#       (It is a shell script and variables will be overwritten
+#       by the last specified value)
+#
+
+
+# Gzip
+COMPRESS_BIN="gzip"
+COMPRESS_ARG="-9 --stdout"
+COMPRESS_EXT="gz"
+
+# pigz (parallel gzip)
+#COMPRESS_BIN="pigz"
+#COMPRESS_ARG="-9 --stdout"
+#COMPRESS_EXT="gz"
+
+# Bzip2
+#COMPRESS_BIN="bzip2"
+#COMPRESS_ARG="-9 --stdout"
+#COMPRESS_EXT="bz2"
+
+# PBzip2
+# (multithreaded bzip2 version)
+#COMPRESS_BIN="pbzip2"
+#COMPRESS_ARG="-9 --stdout"
+#COMPRESS_EXT="bz2"
+
+# xz
+# (algo: lzma2)
+#COMPRESS_BIN="xz"
+#COMPRESS_ARG="-9 --stdout"
+#COMPRESS_EXT="xz"
+
+# LZMA
+# (On modern systems it is usually an alias to 'xz --format=lzma')
+#COMPRESS_BIN="lzma"
+#COMPRESS_ARG="-9 --stdout"
+#COMPRESS_EXT="lzma"
+
+# LZOP
+#COMPRESS_BIN="lzop"
+#COMPRESS_ARG="-9 --stdout"
+#COMPRESS_EXT="lzo"
+
+
+
+
+############################################################
+# (OPT) Encryption
+############################################################
+
 
 #
 # Encryption is done via openssl smime public/private key.
@@ -120,25 +587,70 @@ COMPRESS={{ mysqlbackup_mysqldump_compress_active }}
 #    openssl smime -decrypt -in file.txt.enc -binary -inform DEM -inkey mysqldump-secure.priv.pem -out file.txt
 
 
-
 # Encrypt database dumps?
-# 1: yes
-# 0: no (Default)
+#
+# Values:
+# -------
+# 1: Encrypt
+# 0: Do not encrypt
+#
+# NOTE: No default value!
+#       If $ENCRYPT is not set or has a wrong value,
+#       mysqldump-secure will abort.
+#
 ENCRYPT={{ mysqlbackup_mysqldump_encrypt_active }}
 
-# Only applicable if ENCRYPT = 1
-# OpenSSL Public key in PEM format without passphrase
-#OPENSSL_PUBKEY_PEM="{{ mysqlbackup_mysqldump_encrypt_pub_key }}"
 
-# Only applicable if ENCRYPT = 1
+#
+# OpenSSL Public key in PEM format without passphrase!
+#
+# WARN: Only the public key is required for dumping.
+#       The private key should be kept somewhere safe.
+#       Best case on a different machine.
+#       The private key is only required for decrypting.
+#
+# NOTE: See bundled 'create-keypair.sh' to generate a
+#       public/private keypair.
+#
+# NOTE: Only applicable if ENCRYPT = 1
+#
+# NOTE: No default value!
+#       If $ENCRYPT is enabled and the pubkey is not found,
+#       mysqldump-secure will abort.
+#
+#       If the pubkey is invalid, mysqldump-secure will encounter
+#       errors on processing the dump before writing to disk.
+#       All errors are outputted.
+OPENSSL_PUBKEY_PEM="{{ mysqlbackup_mysqldump_encrypt_pub_key }}"
+
+
+#
+# OpenSSL symmetric encryption algorithm.
+#
+# NOTE: Only applicable if ENCRYPT = 1
+#
 # Must be valid openssl encryption algorithm
-#OPENSSL_ALGO_ARG="{{ mysqlbackup_mysqldump_encrypt_algo }}"
+#
+# Default value: "-aes256"
+OPENSSL_ALGO_ARG="{{ mysqlbackup_mysqldump_encrypt_algo }}"
 
 
 
-######################################################################
-# Delete old files?
-######################################################################
+
+# There is a Bug in OpenSSL's SMIME implementation
+# for files larger than about 1.5 GB. The final output
+# will be truncated at 1.9 GB and the file won't be able to
+# be decrypted.
+# mysqldump-secure will warn, once the database is larger than
+# 1200 MB just to make sure.
+# If you are really sure about what you are doing, you can disabled
+# this warning here.
+ENABLE_SMIME_BUG_WARNING=1
+
+
+############################################################
+# (OPT) Automatic deletions (tmpwatch/tmpreaper)
+############################################################
 
 #
 # This relies completely on tmpwatch/tmpreamer and will delete all files recursively
@@ -150,8 +662,8 @@ ENCRYPT={{ mysqlbackup_mysqldump_encrypt_active }}
 #
 # Command parsed to tmpwatch/tmpreaper
 #
-# tmpwatch -m ${DELETE_IF_OLDER} -v ${TARGET}/
-# tmpreaper -m ${DELETE_IF_OLDER} -v ${TARGET}/
+# tmpwatch -m ${DELETE_IF_OLDER} -v ${DUMP_DIR}/
+# tmpreaper -m ${DELETE_IF_OLDER} -v ${DUMP_DIR}/
 #
 
 # Delete old files
@@ -164,13 +676,12 @@ DELETE={{ mysqlbackup_mysqldump_delete_active }}
 # Possible values:
 # * tmpwatch
 # * tmpreaper
-#
 DELETE_METHOD="{{ mysqlbackup_mysqldump_delete_method }}"
 
 
 
 # Force deletion for read-only files.
-# If your $TARGET_FILE_CHMOD is set to create read-only database dumps,
+# If your $DUMP_FILE_CHMOD is set to create read-only database dumps,
 # tmpwatch/tmpreader will not be able to delete those files, unless you
 # specify to force it via -f (--force)
 #
@@ -181,20 +692,30 @@ DELETE_FORCE={{ mysqlbackup_mysqldump_delete_force }}
 
 
 # Only applicable of DELETE = 1
-# Delete all files recursively which modification time
+# Delete all files recursively which modification time (mtime)
 # is older than this
 # e.g.
-# DELETE_IF_OLDER=720   # 30 days
+# DELETE_IF_OLDER=720	# 30 days
 #
-# NOTE: Only positive integers greater than zero are allowed
-#       Everything else will disable deletion.
+# All valid tmpwatch/tmpreaper value-units are allowed.
+# * "No unit" defaults to hours (see `man tmpwatch` or `man tmpreaper`)
+# * m: minutes
+# * h: hours
+# * d: days
+#
+# Example
+# * DELETE_IF_OLDER=3m  # older than 3 minutes
+# * DELETE_IF_OLDER=3h  # older than 3 hours
+# * DELETE_IF_OLDER=3d  # older than 3 days
+# * DELETE_IF_OLDER=3   # older than 3 hours
+#
 DELETE_IF_OLDER={{ mysqlbackup_mysqldump_delete_max_hours }}     # older than 30 days
 
 
 
-######################################################################
-# Nagios Logging
-######################################################################
+############################################################
+# (OPT) Nagios Plugin Log
+############################################################
 
 # Enable separate logfile which can be parsed by check_mysqldump-secure
 # in order to report success/warn/error state to nagios server
@@ -207,5 +728,84 @@ DELETE_IF_OLDER={{ mysqlbackup_mysqldump_delete_max_hours }}     # older than 30
 NAGIOS_LOG={{ mysqlbackup_mysqldump_nagios_active }}
 
 # Only applicable if NAGIOS_LOG = 1
-# NOTE: Must be chmod 644
-NAGIOS_LOGFILE="{{ mysqlbackup_logdir }}/mysqldump-secure.nagios.log"
+#
+NAGIOS_LOG_FILE="{{ mysqlbackup_logdir }}/mysqldump-secure.nagios.log"
+
+# File permission of Nagios log.
+# NOTE: A 'nagios user' should be able to read the file.
+NAGIOS_LOG_CHMOD="0644"
+
+
+
+
+############################################################
+# (OPT) Info file
+############################################################
+
+
+# Write info file for dumps?
+#
+# The info file will contain various information about the dump:
+#   * Date, time, filename, filesize, md5 hash
+#   * Database name, size in database
+#   * Applied mysqldump options
+#   * Compressed?, encrypted?
+#   * Table count, table engines
+#   * Server info
+#
+# It is used to later verify your backups and/or quickly see
+# what is inside and how and from where it has been dumped.
+# (WIP: mysqldump-secure --validate)
+#
+# This information will also be used for
+# (the current under development) 'mysqlimport-secure' to
+# easily list all dumps and choose which one to quickly re-import.
+# (WIP: mysqlimport-secure)
+#
+# chmod:
+# ------
+# It will use the same chmod settings as
+# the dump file itself. This way it will be deleted via tmpwatch/tmpreaper
+# at the same time as the dump itself. (hint: `--force` option)
+#
+# Filename:
+# ---------
+# The info file will have the same name as the corresponding dump
+# with '.info' suffixed.
+#
+# Values:
+# -------
+# 1: Enabled
+# 0: Disabled (Default)
+DUMP_FILE_INFO=1
+
+
+
+
+
+################################################################################
+#
+#  5.   M I S C
+#
+################################################################################
+
+############################################################
+# Temporary system directory
+############################################################
+
+
+# Temporary system directory.
+# This should normally not be changed as /tmp
+# is the default on most systems.
+#
+# The tmp folder is used to store files which hold stderr as well as
+# stdout of mysqldump, openssl and the used compression tool.
+#
+# All tmp files will be deleted at the end of every run.
+#
+# NOTE: If the directory does not exist
+#       or the directory is not writeable,
+#       mysqldump-secure will abort.
+#
+# Default value: "/tmp"
+TMP_DIR="/tmp"
